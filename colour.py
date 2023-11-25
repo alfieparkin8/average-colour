@@ -1,27 +1,38 @@
 from PIL import Image
 import numpy as np
+from sklearn.cluster import KMeans
 import os
 
-def average_color(image_path):
+def most_prominent_color(image_path, k=1):
     img = Image.open(image_path)
     img = img.convert("RGB")
-    img_array = np.array(img)
-    avg_color = np.mean(img_array, axis=(0, 1))
-    return tuple(map(int, avg_color))
+    img_array = np.array(img).reshape((-1, 3))
 
-def apply_average_color(image_path, average_color, output_folder, relative_path):
+    # Perform k-means clustering to find the most prominent color
+    kmeans = KMeans(n_clusters=k)
+    kmeans.fit(img_array)
+
+    # Get the most prominent color
+    prominent_color = np.uint8(kmeans.cluster_centers_[0])
+
+    return tuple(prominent_color)
+
+def apply_most_prominent_color(image_path, output_folder, relative_path):
     try:
+        # Get the most prominent color for the input image
+        prominent_color = most_prominent_color(image_path)
+
+        # Create an output image with the same size as the input
         img = Image.open(image_path)
         img = img.convert("RGB")
-        
-        # Create an output image with the same size as the input
-        new_image = Image.new("RGB", img.size, average_color)
+        new_image = Image.new("RGB", img.size, prominent_color)
 
         # Save the output image in the corresponding subdirectory with the same name as the input
         output_subfolder = os.path.join(output_folder, os.path.dirname(relative_path))
         os.makedirs(output_subfolder, exist_ok=True)
         output_path = os.path.join(output_subfolder, os.path.basename(image_path))
         new_image.save(output_path)
+
         return output_path
     except Exception as e:
         print(f"Error processing image {image_path}: {e}")
@@ -41,16 +52,14 @@ def main():
         print("No image files found in the directory.")
         return
 
-    # Apply the average color to each image in the directory and its subdirectories
+    # Apply the most prominent color to each image in the directory and its subdirectories
     successful_count = 0
     for i, image_path in enumerate(image_files):
         relative_path = os.path.relpath(image_path, images_directory)
-        avg_color = average_color(image_path)
-        if avg_color is not None:
-            output_path = apply_average_color(image_path, avg_color, output_folder, relative_path)
-            if output_path is not None:
-                successful_count += 1
-                print(f"Processed image {i + 1}/{len(image_files)} - Output saved to: {output_path}")
+        output_path = apply_most_prominent_color(image_path, output_folder, relative_path)
+        if output_path is not None:
+            successful_count += 1
+            print(f"Processed image {i + 1}/{len(image_files)} - Output saved to: {output_path}")
 
     print(f"Processed {successful_count} out of {len(image_files)} images.")
 
